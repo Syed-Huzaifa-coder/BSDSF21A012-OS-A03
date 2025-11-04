@@ -33,7 +33,7 @@ const char* builtin_commands[] = {
     NULL
 };
 
-// ---------- Custom completion for built-in commands and filenames ----------
+// ---------- Custom completion ----------
 char* command_generator(const char* text, int state) {
     static int list_index, len;
     const char* name;
@@ -53,15 +53,11 @@ char* command_generator(const char* text, int state) {
 
 char **my_completion(const char *text, int start, int end) {
     char **matches = NULL;
-
-    // If at the beginning of the line, complete commands
     if (start == 0) {
         matches = rl_completion_matches(text, command_generator);
     } else {
-        // Otherwise, complete filenames
         matches = rl_completion_matches(text, rl_filename_completion_function);
     }
-
     return matches;
 }
 
@@ -78,7 +74,6 @@ int main() {
             continue;
         }
 
-        // Check for !n syntax before storing to history
         if (cmdline[0] == '!') {
             int index = atoi(&cmdline[1]) - 1;
             if (index < 0 || index >= history_count) {
@@ -91,14 +86,12 @@ int main() {
             printf("%s\n", cmdline);
         }
 
-        // Store command in Readline and custom history
         add_history(cmdline);
         add_to_history_custom(cmdline);
 
-        // Tokenize and execute
         if ((arglist = tokenize(cmdline)) != NULL) {
             if (!handle_builtin(arglist)) {
-                execute(arglist); // external commands
+                execute_io_pipe(cmdline); // Updated to handle I/O redirection & pipes
             }
 
             for (int i = 0; arglist[i] != NULL; i++)
@@ -110,10 +103,9 @@ int main() {
     }
 
     printf("\nShell exited.\n");
-
-    // Free custom history
     for (int i = 0; i < history_count; i++)
         free(history[i]);
 
     return 0;
 }
+
