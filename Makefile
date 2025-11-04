@@ -1,5 +1,6 @@
 CC = gcc
 CFLAGS = -Iinclude -Wall
+LDFLAGS = -lreadline
 OBJDIR = obj
 BINDIR = bin
 SRCDIR = src
@@ -11,7 +12,7 @@ all: $(TARGET)
 
 $(TARGET): $(OBJS)
 	@mkdir -p $(BINDIR)
-	$(CC) $(OBJS) -o $(TARGET)
+	$(CC) $(OBJS) -o $(TARGET) $(LDFLAGS)
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	@mkdir -p $(OBJDIR)
