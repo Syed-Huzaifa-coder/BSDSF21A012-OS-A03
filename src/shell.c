@@ -5,6 +5,9 @@
 #include <unistd.h>
 #include <strings.h> // for bzero
 
+extern char* history[HISTORY_SIZE];
+extern int history_count;
+
 // ---------- Read command from user ----------
 char* read_cmd(char* prompt, FILE* fp) {
     printf("%s", prompt);
@@ -20,7 +23,7 @@ char* read_cmd(char* prompt, FILE* fp) {
         free(cmdline);
         return NULL; // Handle Ctrl+D
     }
-    
+
     cmdline[pos] = '\0';
     return cmdline;
 }
@@ -57,7 +60,7 @@ char** tokenize(char* cmdline) {
     }
 
     if (argnum == 0) {
-        for(int i = 0; i < MAXARGS + 1; i++) free(arglist[i]);
+        for (int i = 0; i < MAXARGS + 1; i++) free(arglist[i]);
         free(arglist);
         return NULL;
     }
@@ -91,16 +94,26 @@ int handle_builtin(char **arglist) {
     // help command
     if (strcmp(arglist[0], "help") == 0) {
         printf("Built-in commands:\n");
-        printf("  exit  - Exit the shell\n");
-        printf("  cd    - Change directory\n");
-        printf("  help  - Show this help message\n");
-        printf("  jobs  - Show jobs (not implemented yet)\n");
+        printf("  exit   - Exit the shell\n");
+        printf("  cd     - Change directory\n");
+        printf("  help   - Show this help message\n");
+        printf("  job    - Show jobs (not implemented yet)\n");
+        printf("  history - Show command history\n");
+        printf("  !n     - Re-execute nth command from history\n");
         return 1;
     }
 
     // jobs command
     if (strcmp(arglist[0], "jobs") == 0) {
         printf("Job control not yet implemented.\n");
+        return 1;
+    }
+
+    // history command
+    if (strcmp(arglist[0], "history") == 0) {
+        for (int i = 0; i < history_count; i++) {
+            printf("%d %s\n", i + 1, history[i]);
+        }
         return 1;
     }
 
