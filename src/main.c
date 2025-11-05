@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include "shell.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -90,6 +91,45 @@ void builtin_jobs() {
     }
 }
 
+// ---------- Execute Command and Return Exit Code ----------
+int execute_command_with_status(char* command) {
+    pid_t pid = fork();
+    if (pid == 0) { // Child
+        char* args[MAXARGS + 1];
+        char* input_file = NULL;
+        char* output_file = NULL;
+
+        parse_redirection(command, args, &input_file, &output_file);
+
+        // No pipes here for if condition — straightforward command
+        if (input_file) {
+            int fd = open(input_file, O_RDONLY);
+            if (fd < 0) exit(1);
+            dup2(fd, STDIN_FILENO);
+            close(fd);
+        }
+        if (output_file) {
+            int fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd < 0) exit(1);
+            dup2(fd, STDOUT_FILENO);
+            close(fd);
+        }
+
+        execvp(args[0], args);
+        perror("execvp");  // Only reached if execvp fails
+        exit(1);           // Failed execution => return non-zero
+    }
+    else if (pid > 0) {
+        int status;
+        waitpid(pid, &status, 0);
+        return WEXITSTATUS(status);
+    }
+    else {
+        perror("fork");
+        return -1;
+    }
+}
+
 // ---------- Main Shell ----------
 int main() {
     rl_attempted_completion_function = my_completion;
@@ -119,12 +159,63 @@ int main() {
         add_history(cmdline);
         add_to_history_custom(cmdline);
 
+        // ---------- IF-THEN-ELSE-FI BLOCK ----------
+        if (strncmp(cmdline, "if ", 3) == 0) {
+            char* if_cmd = strdup(cmdline + 3);
+            char* then_block = NULL;
+            char* else_block = NULL;
+            int has_then = 0;
+            int has_else = 0;
+
+            while (1) {
+                char* next_line = readline("> ");
+                if (!next_line) break;
+
+                if (strcmp(next_line, "then") == 0) {
+                    has_then = 1;
+                    then_block = strdup("");
+                } else if (strcmp(next_line, "else") == 0) {
+                    if (!has_then) {
+                        printf("Error: 'then' expected.\n");
+                        free(next_line);
+                        break;
+                    }
+                    has_else = 1;
+                    else_block = strdup("");
+                } else if (strcmp(next_line, "fi") == 0) {
+                    free(next_line);
+                    break;
+                } else {
+                    char** target_block = has_else ? &else_block : &then_block;
+                    if (*target_block) {
+                        *target_block = realloc(*target_block, strlen(*target_block) + strlen(next_line) + 2);
+                        strcat(*target_block, next_line);
+                        strcat(*target_block, "\n");
+                    }
+                }
+                free(next_line);
+            }
+
+            int status = execute_command_with_status(if_cmd);
+            if (status == 0 && then_block) {
+                execute_io_pipe(then_block);
+            } else if (status != 0 && has_else && else_block) {
+                execute_io_pipe(else_block);
+            }
+
+            free(if_cmd);
+            free(then_block);
+            free(else_block);
+            free(cmdline);
+            continue;
+        }
+
         // ---------- Split commands by ';' ----------
         char* cmd_copy = strdup(cmdline);
         char* token = strtok(cmd_copy, ";");
 
         while (token != NULL) {
-            while (*token == ' ') token++; // Trim leading spaces
+            while (*token == ' ') token++;
             char* end = token + strlen(token) - 1;
             while (end > token && (*end == ' ' || *end == '\n')) *end-- = '\0';
 
@@ -132,7 +223,7 @@ int main() {
                 int background = 0;
                 end = token + strlen(token) - 1;
 
-                if (*end == '&') { // Background execution
+                if (*end == '&') {
                     background = 1;
                     *end = '\0';
                     while (end > token && (*(end - 1) == ' ')) *(--end) = '\0';
@@ -145,10 +236,10 @@ int main() {
                             strip_quotes(arglist[1]);
 
                         pid_t pid = fork();
-                        if (pid == 0) { // Child
-                            execute_io_pipe(token); // Handles pipes & redirection
+                        if (pid == 0) {
+                            execute_io_pipe(token);
                             exit(0);
-                        } else if (pid > 0) { // Parent
+                        } else if (pid > 0) {
                             if (background) {
                                 printf("[Background] PID: %d\n", pid);
                                 if (bg_count < MAX_JOBS)

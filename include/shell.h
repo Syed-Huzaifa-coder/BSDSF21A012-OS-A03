@@ -22,6 +22,8 @@ char** tokenize(char* cmdline);
 int handle_builtin(char** arglist);
 int execute(char** arglist);
 int execute_io_pipe(char* cmdline); // already in your shell.h // New: execute with I/O redirection and pipes
+int handle_if_block(const char* initial_line);  // Parses and executes if-then-else-fi
+void parse_redirection(char* cmd, char** args, char** input_file, char** output_file);
 
 // New: Background job handling
 void reap_background_jobs();
