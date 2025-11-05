@@ -13,7 +13,7 @@ int split_commands(char* cmdline, char* commands[]) {
     int count = 0;
     char* token = strtok(cmdline, "|");
     while (token && count < MAX_CMDS) {
-        while (*token == ' ') token++; // Trim leading spaces
+        while (*token == ' ' || *token == '\t') token++; // Trim leading spaces
         commands[count++] = token;
         token = strtok(NULL, "|");
     }
@@ -91,8 +91,8 @@ int execute_io_pipe(char* cmdline) {
             }
 
             // Close unused pipe ends in child
-            if (pipefd[0]) close(pipefd[0]);
-            if (pipefd[1]) close(pipefd[1]);
+            if (i < num_cmds - 1) close(pipefd[0]);
+            if (prev_fd != -1 && prev_fd != STDIN_FILENO) close(prev_fd);
 
             // Execute command
             if (execvp(args[0], args) < 0) {
@@ -104,8 +104,10 @@ int execute_io_pipe(char* cmdline) {
             if (i < num_cmds - 1) {
                 close(pipefd[1]); // close write end
                 prev_fd = pipefd[0]; // read end for next command
+            } else {
+                prev_fd = -1; // last command
             }
-            waitpid(pid, NULL, 0);
+            // Parent wait handled in main.c for foreground/background
         }
     }
 
